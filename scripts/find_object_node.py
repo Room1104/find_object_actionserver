@@ -1,12 +1,22 @@
 #!/usr/bin/env python
 
 import rospy
+
 from find_object_actionserver.msg import test_actionAction
 from find_object_actionserver.msg import test_actionResult
 from datetime import *
 from std_srvs.srv import Empty, EmptyResponse
 from strands_executive_msgs import task_utils
 from strands_executive_msgs.abstract_task_server import AbstractTaskServer
+
+
+#my changes starts here
+import uuid
+from strands_executive_msgs import Task
+from strands_executive.msgs.srv import AddTask, DemandTask,SetExecutionStats
+import std_srvs.srv
+import mary_tts.msg
+import sensor_msgs.msg
 
 
 class TestServer(AbstractTaskServer):
@@ -26,9 +36,25 @@ class TestServer(AbstractTaskServer):
             task_utils.add_duration_argument(t, t.max_duration)
         return t
 
+    def say(text):
+        # code copied from QtGUI
+        c = actionlib.SimpleActionClient('speak',mary_tts.msg.maryttsAction)
+        if(not c.wait_for_server(timeout=rospy.Duration(10))):
+            print "Failed to connect to server"
+            return std_srvs.srv.TriggerResponse(False,"failed to connect to server");
+        goal = mary_tts.msg.maryttsGoal(text)
+        c.send_goal(goal)
+        if(not c.wait_for_result(timeout=rospy.Duration(10))):
+            print "Failed to get result"
+            return std_srvs.srv.TriggerResponse(False,"failed to get result");
+        return std_srvs.srv.TriggerResponse(True,text);
+
     def execute(self, goal):
-#        end_wait_srv = rospy.Service('/wait_action/end_wait',
-#                                     Empty, self.end_wait)
+
+
+        # TODO: CHECK IF IT IS COMPILING
+
+
         now = rospy.get_rostime()
         order = goal.order
         rospy.loginfo("order is: %s" 
@@ -37,7 +63,91 @@ class TestServer(AbstractTaskServer):
         result = test_actionResult()
         result.sequence.append(5)
 
+        say("I'm trying to find the coffee!")
+
+        # start doing something
+        coffee_found = False
+        list_of_waypoints = ['WayPoint1','WayPoint2','WayPoint3','WayPoint4','WayPoint5']
+        for i in list_of_waypoints:
+                
+            say("I'm going to " + i)
+            # ACTION : GO TO WAYPONT
+
+            # Move to the next location
+            task = Task()
+
+            task.action = '/wait_action'
+
+            max_wait_minutes = 160 * 160
+            task.max_duration = rospy.Duration(max_wait_minutes)
+
+            task.start_node_id = i
+            task.end_node_id = i
+
+            task_utils.add_time_argument(task, rospy.Time())
+            task_utils.add_duration_argument(task, rospy.Duration(10))
+
+            set_execution_status = get_execution_status_service()
+            set_execution_status(True) 
+
+            task.start_after = rospy.get_rostime() + rospy.Duration(10)
+            task.end_before = task.start_after + rospy.Duration(task.max_duration.to_sec() * 3)
+            
+            # Execute task
+            demand_task = get_demand_task_service()
+            demand_task(task)
+
+            # obtaining from the topic a point cloud
+            msg = rospy.wait_for_message("/head_xtion/depth_registered/points", sensor_msgs.msg.PointCloud2)
+
+            # calling the object recognition service 
+            object_recog = rospy.ServiceProxy('/recognition_service/sv_recognition', recognition_srv_definitions.srv.recognize)
+            object_recog.wait_for_service()
+            requestCoffee = recognition_srv_definitions.srv.recognizeRequest()
+            requestCoffee.cloud = msg
+            results = object_recog(requestCoffee)
+            results.ids
+            print results.ids
+            if "nameofthecoffeeintherecognition" in results.ids :
+                coffee_found = True 
+                #do stuff
+                #coffee_found = PSEUDOCODE_WHERE_I_SHOULD_CALL_THE_SERVICE
+
+            if coffee_found :
+                coffee_place = i
+                say("The coffee is at" + i)
+                break
+
+
+        if coffee_found    
+            say("I found coffee i'm happy")
+            #twit that the coffee was found
+            # be happy
+        else 
+            #twit that someone stole the coffee
+            # be sad
+            say("Someone stole the coffee")
+            # end doing something
+
         self.server.set_succeeded(result)
+
+    def get_service(service_name, service_type):    
+        rospy.loginfo('Waiting for %s service...' % service_name)
+        rospy.wait_for_service(service_name)
+        rospy.loginfo("Done")        
+        return rospy.ServiceProxy(service_name, service_type)
+
+    def get_execution_status_service():
+        return get_service('/task_executor/set_execution_status', SetExecutionStatus)
+
+    def get_add_tasks_service():
+        return get_service('/task_executor/add_tasks', AddTasks)
+
+    def get_demand_task_service():
+        return get_service('/task_executor/demand_task', DemandTask)
+
+    
+    
 
 
 if __name__ == '__main__':
