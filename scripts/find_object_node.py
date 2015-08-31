@@ -72,7 +72,7 @@ class TestServer(AbstractTaskServer):
         list_of_waypoints = ['WayPoint1','WayPoint2','WayPoint3','WayPoint4','WayPoint5']
         for i in list_of_waypoints:
                 
-            say("I'm going to " + i)
+            self.say("I'm going to " + i)
             # ACTION : GO TO WAYPONT
 
             # Move to the next location
@@ -129,13 +129,13 @@ class TestServer(AbstractTaskServer):
 
 
         if coffee_found    
-            say("I found coffee i'm happy")
+            self.say("I found coffee i'm happy")
             #twit that the coffee was found
             # be happy
         else 
             #twit that someone stole the coffee
             # be sad
-            say("Someone stole the coffee")
+            self.say("Someone stole the coffee")
             # end doing something
 
         self.server.set_succeeded(result)
