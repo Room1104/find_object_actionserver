@@ -17,6 +17,8 @@ from strands_executive.msgs.srv import AddTask, DemandTask,SetExecutionStats
 import std_srvs.srv
 import mary_tts.msg
 import sensor_msgs.msg
+import flir_pantilt_d46.msg
+from sensor_msgs.msg import JointState
 
 
 class TestServer(AbstractTaskServer):
@@ -97,6 +99,10 @@ class TestServer(AbstractTaskServer):
             demand_task = get_demand_task_service()
             demand_task(task)
 
+
+            # Change the orientation of the camera
+            tilt_PTU(0,40)
+
             # obtaining from the topic a point cloud
             msg = rospy.wait_for_message("/head_xtion/depth_registered/points", sensor_msgs.msg.PointCloud2)
 
@@ -108,15 +114,18 @@ class TestServer(AbstractTaskServer):
             results = object_recog(requestCoffee)
             results.ids
             print results.ids
-            if "nameofthecoffeeintherecognition" in results.ids :
+            if "nescafe" in results.ids or "teabox" in results.ids :
                 coffee_found = True 
                 #do stuff
                 #coffee_found = PSEUDOCODE_WHERE_I_SHOULD_CALL_THE_SERVICE
+            else
+                say("coffee not found at location "+ i)
 
             if coffee_found :
                 coffee_place = i
                 say("The coffee is at" + i)
                 break
+            tilt_PTU(0,0)
 
 
         if coffee_found    
@@ -147,6 +156,22 @@ class TestServer(AbstractTaskServer):
         return get_service('/task_executor/demand_task', DemandTask)
 
     
+    def tilt_PTU(pan,tilt)
+        # PTU client
+        rospy.loginfo("Creating PTU client")
+        self.ptuClient = actionlib.SimpleActionClient(
+            'SetPTUState',
+            flir_pantilt_d46.msg.PtuGotoAction
+        )
+        self.ptuClient.wait_for_server()
+        rospy.loginfo("...done")
+
+        goal = flir_pantilt_d46.msg.PtuGotoGoal()
+        goal.pan = pan
+        goal.tilt = tilt
+        goal.pan_vel = 60
+        goal.tilt_vel = 60
+        self.ptuClient.send_goal(goal)
     
 
 
